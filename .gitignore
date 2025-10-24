@@ -1,0 +1,106 @@
+# Files and directories to ignore
+
+# Environment and config files with sensitive data
+config/config.php
+.env
+*.env
+
+# Database files
+*.sql
+*.db
+*.sqlite
+
+# Logs
+logs/
+*.log
+error.log
+access.log
+dev.log
+
+# Temporary files
+tmp/
+temp/
+cache/
+*.tmp
+*.temp
+
+# Upload directories
+uploads/
+files/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Composer (if using)
+vendor/
+composer.lock
+
+# Node modules (if using)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Backup files
+*.bak
+*.backup
+
+# Session files
+sessions/
+
+# SSL certificates
+*.pem
+*.key
+*.crt
+
+# User uploaded content
+user_files/
+public/uploads/
+
+# Cache directories
+cache/
+templates_c/
+
+# Local development
+local/
+dev/
+staging/
+
+# Documentation build
+docs/_build/
+
+# Test coverage
+coverage/
+
+# Runtime files
+*.pid
+*.seed
+*.pid.lock
+
+# Package managers
+bower_components/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
