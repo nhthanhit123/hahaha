@@ -1,6 +1,6 @@
 <?php
 session_start();
-require_once 'config/config.php';
+require_once 'includes/db.php';
 require_once 'includes/functions.php';
 
 // Kiểm tra đăng nhập
@@ -19,28 +19,23 @@ $total = 0;
 
 try {
     // Lấy tổng số dịch vụ
-    $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM vps_services WHERE user_id = ?");
-    $stmt->execute([$_SESSION['user_id']]);
-    $total = $stmt->fetch()['total'];
+    $total = getRow("SELECT COUNT(*) as total FROM services WHERE user_id = ?", [$_SESSION['user_id']])['total'];
     
     // Lấy danh sách dịch vụ
-    $stmt = $pdo->prepare("
-        SELECT vs.*, vp.name as package_name, vp.cpu_cores, vp.ram_gb, vp.storage_gb, vp.bandwidth_gb,
-               os.name as os_name, os.version as os_version, os.os_type,
+    $services = getRows("
+        SELECT s.*, p.name as package_name, p.cpu_cores, p.ram_gb, p.storage_gb, p.bandwidth_gb,
                o.order_code, o.billing_cycle, o.total_amount
-        FROM vps_services vs
-        LEFT JOIN vps_packages vp ON vs.package_id = vp.id
-        LEFT JOIN operating_systems os ON vs.os_id = os.id
-        LEFT JOIN orders o ON vs.order_id = o.id
-        WHERE vs.user_id = ?
-        ORDER BY vs.created_at DESC
+        FROM services s
+        LEFT JOIN packages p ON s.package_id = p.id
+        LEFT JOIN orders o ON s.order_id = o.id
+        WHERE s.user_id = ?
+        ORDER BY s.created_at DESC
         LIMIT ? OFFSET ?
-    ");
-    $stmt->execute([$_SESSION['user_id'], $limit, $offset]);
-    $services = $stmt->fetchAll();
+    ", [$_SESSION['user_id'], $limit, $offset]);
     
-} catch(PDOException $e) {
+} catch(Exception $e) {
     $services = [];
+    $total = 0;
 }
 
 $page_title = "Quản lý dịch vụ VPS - " . SITE_NAME;
@@ -157,13 +152,10 @@ include 'includes/header.php';
                                         <div class="text-sm font-medium text-gray-900"><?php echo htmlspecialchars($service['package_name']); ?></div>
                                         <div class="text-sm text-gray-500">
                                             <?php 
-                                            $os_icon = $service['os_type'] == 'windows' ? 'fab fa-windows text-blue-600' : 'fab fa-linux text-orange-600';
+                                            $os_icon = 'fab fa-linux text-orange-600'; // 默认Linux
                                             ?>
                                             <i class="<?php echo $os_icon; ?> mr-1"></i>
-                                            <?php echo htmlspecialchars($service['os_name']); ?>
-                                            <?php if ($service['os_version']): ?>
-                                                <?php echo htmlspecialchars($service['os_version']); ?>
-                                            <?php endif; ?>
+                                            <?php echo htmlspecialchars($service['os'] ?: 'N/A'); ?>
                                         </div>
                                         <div class="text-xs text-gray-400">Mã đơn: <?php echo $service['order_code']; ?></div>
                                     </td>
@@ -191,10 +183,10 @@ include 'includes/header.php';
                                     </td>
                                     <td class="px-6 py-4">
                                         <div class="text-sm">
-                                            <?php if ($service['expiry_date']): ?>
-                                                <div class="text-gray-900"><?php echo formatDate($service['expiry_date']); ?></div>
+                                            <?php if ($service['next_due_date']): ?>
+                                                <div class="text-gray-900"><?php echo formatDate($service['next_due_date']); ?></div>
                                                 <?php 
-                                                $days_left = floor((strtotime($service['expiry_date']) - time()) / (60 * 60 * 24));
+                                                $days_left = floor((strtotime($service['next_due_date']) - time()) / (60 * 60 * 24));
                                                 if ($days_left <= 7 && $days_left > 0) {
                                                     echo '<div class="text-yellow-600 text-xs">Còn ' . $days_left . ' ngày</div>';
                                                 } elseif ($days_left <= 0) {
@@ -212,15 +204,13 @@ include 'includes/header.php';
                                             'pending' => 'bg-yellow-100 text-yellow-800',
                                             'active' => 'bg-green-100 text-green-800',
                                             'suspended' => 'bg-red-100 text-red-800',
-                                            'expired' => 'bg-gray-100 text-gray-800',
-                                            'cancelled' => 'bg-gray-100 text-gray-800'
+                                            'terminated' => 'bg-gray-100 text-gray-800'
                                         ];
                                         $status_text = [
                                             'pending' => 'Chờ xử lý',
                                             'active' => 'Hoạt động',
                                             'suspended' => 'Tạm dừng',
-                                            'expired' => 'Hết hạn',
-                                            'cancelled' => 'Đã hủy'
+                                            'terminated' => 'Đã终止'
                                         ];
                                         ?>
                                         <span class="px-2 py-1 text-xs rounded-full <?php echo $status_colors[$service['status']]; ?>">
@@ -234,7 +224,7 @@ include 'includes/header.php';
                                                         class="text-blue-600 hover:text-blue-800 text-sm">
                                                     <i class="fas fa-eye"></i>
                                                 </button>
-                                                <?php if ($service['expiry_date'] && strtotime($service['expiry_date']) > time()): ?>
+                                                <?php if ($service['next_due_date'] && strtotime($service['next_due_date']) > time()): ?>
                                                     <a href="renew.php?service_id=<?php echo $service['id']; ?>" 
                                                        class="text-green-600 hover:text-green-800 text-sm">
                                                         <i class="fas fa-sync"></i>

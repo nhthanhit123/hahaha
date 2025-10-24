@@ -1,6 +1,6 @@
 <?php
 session_start();
-require_once 'config/config.php';
+require_once 'includes/db.php';
 require_once 'includes/functions.php';
 
 // Kiểm tra đăng nhập
@@ -12,9 +12,7 @@ if (!isLoggedIn()) {
 
 // Lấy thông tin user
 try {
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
-    $stmt->execute([$_SESSION['user_id']]);
-    $user = $stmt->fetch();
+    $user = getRow("SELECT * FROM users WHERE id = ?", [$_SESSION['user_id']]);
     
     if (!$user) {
         session_destroy();
@@ -24,47 +22,36 @@ try {
     // Cập nhật session balance
     $_SESSION['user_balance'] = $user['balance'];
     
-} catch(PDOException $e) {
+} catch(Exception $e) {
     die("Lỗi hệ thống");
 }
 
 // Lấy thống kê
 try {
     // Tổng số dịch vụ
-    $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM vps_services WHERE user_id = ?");
-    $stmt->execute([$_SESSION['user_id']]);
-    $total_services = $stmt->fetch()['total'];
+    $total_services = getRow("SELECT COUNT(*) as total FROM services WHERE user_id = ?", [$_SESSION['user_id']])['total'];
     
     // Dịch vụ đang hoạt động
-    $stmt = $pdo->prepare("SELECT COUNT(*) as active FROM vps_services WHERE user_id = ? AND status = 'active'");
-    $stmt->execute([$_SESSION['user_id']]);
-    $active_services = $stmt->fetch()['active'];
+    $active_services = getRow("SELECT COUNT(*) as active FROM services WHERE user_id = ? AND status = 'active'", [$_SESSION['user_id']])['active'];
     
     // Đơn hàng chờ xử lý
-    $stmt = $pdo->prepare("SELECT COUNT(*) as pending FROM orders WHERE user_id = ? AND status = 'pending'");
-    $stmt->execute([$_SESSION['user_id']]);
-    $pending_orders = $stmt->fetch()['pending'];
+    $pending_orders = getRow("SELECT COUNT(*) as pending FROM orders WHERE user_id = ? AND status = 'pending'", [$_SESSION['user_id']])['pending'];
     
     // Nạp tiền chờ duyệt
-    $stmt = $pdo->prepare("SELECT COUNT(*) as pending FROM deposits WHERE user_id = ? AND status = 'pending'");
-    $stmt->execute([$_SESSION['user_id']]);
-    $pending_deposits = $stmt->fetch()['pending'];
+    $pending_deposits = getRow("SELECT COUNT(*) as pending FROM deposits WHERE user_id = ? AND status = 'pending'", [$_SESSION['user_id']])['pending'];
     
     // Lấy 5 dịch vụ gần nhất
-    $stmt = $pdo->prepare("
-        SELECT vs.*, vp.name as package_name, os.name as os_name 
-        FROM vps_services vs 
-        LEFT JOIN vps_packages vp ON vs.package_id = vp.id 
-        LEFT JOIN operating_systems os ON vs.os_id = os.id 
-        WHERE vs.user_id = ? 
-        ORDER BY vs.created_at DESC 
+    $recent_services = getRows("
+        SELECT s.*, p.name as package_name 
+        FROM services s 
+        LEFT JOIN packages p ON s.package_id = p.id 
+        WHERE s.user_id = ? 
+        ORDER BY s.created_at DESC 
         LIMIT 5
-    ");
-    $stmt->execute([$_SESSION['user_id']]);
-    $recent_services = $stmt->fetchAll();
+    ", [$_SESSION['user_id']]);
     
-} catch(PDOException $e) {
-    die("Lỗi khi lấy dữ liệu");
+} catch(Exception $e) {
+    die("Lỗi khi lấy dữ liệu: " . $e->getMessage());
 }
 
 $page_title = "Dashboard - " . SITE_NAME;
@@ -198,7 +185,7 @@ include 'includes/header.php';
                                             <td class="py-3">
                                                 <div class="font-medium text-gray-900"><?php echo htmlspecialchars($service['package_name']); ?></div>
                                             </td>
-                                            <td class="py-3 text-sm text-gray-600"><?php echo htmlspecialchars($service['os_name']); ?></td>
+                                            <td class="py-3 text-sm text-gray-600"><?php echo htmlspecialchars($service['os'] ?: 'N/A'); ?></td>
                                             <td class="py-3 text-sm text-gray-600">
                                                 <?php echo $service['ip_address'] ?: 'Chưa cấp'; ?>
                                             </td>
@@ -208,15 +195,13 @@ include 'includes/header.php';
                                                     'pending' => 'bg-yellow-100 text-yellow-800',
                                                     'active' => 'bg-green-100 text-green-800',
                                                     'suspended' => 'bg-red-100 text-red-800',
-                                                    'expired' => 'bg-gray-100 text-gray-800',
-                                                    'cancelled' => 'bg-gray-100 text-gray-800'
+                                                    'terminated' => 'bg-gray-100 text-gray-800'
                                                 ];
                                                 $status_text = [
                                                     'pending' => 'Chờ xử lý',
                                                     'active' => 'Hoạt động',
                                                     'suspended' => 'Tạm dừng',
-                                                    'expired' => 'Hết hạn',
-                                                    'cancelled' => 'Đã hủy'
+                                                    'terminated' => 'Đã终止'
                                                 ];
                                                 ?>
                                                 <span class="px-2 py-1 text-xs rounded-full <?php echo $status_colors[$service['status']]; ?>">
@@ -224,7 +209,7 @@ include 'includes/header.php';
                                                 </span>
                                             </td>
                                             <td class="py-3 text-sm text-gray-600">
-                                                <?php echo $service['expiry_date'] ? formatDate($service['expiry_date']) : 'N/A'; ?>
+                                                <?php echo $service['next_due_date'] ? formatDate($service['next_due_date']) : 'N/A'; ?>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
