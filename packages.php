@@ -1,57 +1,26 @@
 <?php
 session_start();
-require_once 'config/config.php';
+require_once 'includes/db.php';
 require_once 'includes/functions.php';
 
 // Lấy danh sách gói VPS
 $packages = [];
 try {
-    $stmt = $pdo->prepare("SELECT * FROM vps_packages WHERE is_active = 1 ORDER BY price_monthly ASC");
-    $stmt->execute();
-    $packages = $stmt->fetchAll();
-} catch(PDOException $e) {
-    // Nếu chưa có gói nào, thử lấy từ API
-    $packages = getVPSPackages();
-    
-    // Lưu vào database
-    if (!empty($packages)) {
-        try {
-            foreach ($packages as $package) {
-                $stmt = $pdo->prepare("
-                    INSERT INTO vps_packages (name, description, cpu_cores, ram_gb, storage_gb, bandwidth_gb, price_monthly, original_price) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ");
-                $stmt->execute([
-                    $package['name'],
-                    implode(' | ', $package['specs']),
-                    1, // Default values
-                    1,
-                    20,
-                    1000,
-                    $package['price'],
-                    $package['price'] / 1.05
-                ]);
-            }
-            
-            // Lấy lại từ database
-            $stmt = $pdo->prepare("SELECT * FROM vps_packages WHERE is_active = 1 ORDER BY price_monthly ASC");
-            $stmt->execute();
-            $packages = $stmt->fetchAll();
-        } catch(PDOException $e) {
-            // Bỏ qua lỗi
-        }
-    }
+    $packages = getRows("SELECT * FROM packages WHERE is_active = 1 ORDER BY price_monthly ASC");
+} catch(Exception $e) {
+    $error_message = $e->getMessage();
+    $packages = [];
 }
 
-// Lấy danh sách hệ điều hành
-$operating_systems = [];
-try {
-    $stmt = $pdo->prepare("SELECT * FROM operating_systems WHERE is_active = 1 ORDER BY sort_order ASC");
-    $stmt->execute();
-    $operating_systems = $stmt->fetchAll();
-} catch(PDOException $e) {
-    $operating_systems = [];
-}
+// Lấy danh sách hệ điều hành (dữ liệu tạm thời)
+$operating_systems = [
+    ['id' => 1, 'name' => 'Ubuntu', 'version' => '22.04 Jammy', 'os_type' => 'linux'],
+    ['id' => 2, 'name' => 'Ubuntu', 'version' => '20.04 Focal', 'os_type' => 'linux'],
+    ['id' => 3, 'name' => 'CentOS', 'version' => '8', 'os_type' => 'linux'],
+    ['id' => 4, 'name' => 'Debian', 'version' => '11', 'os_type' => 'linux'],
+    ['id' => 5, 'name' => 'Windows Server', 'version' => '2019', 'os_type' => 'windows'],
+    ['id' => 6, 'name' => 'Windows Server', 'version' => '2016', 'os_type' => 'windows']
+];
 
 $page_title = "Gói dịch vụ VPS - " . SITE_NAME;
 include 'includes/header.php';
@@ -95,7 +64,7 @@ include 'includes/header.php';
                     $isPopular = $index === 1; // Gói thứ 2 là popular
                     $packageClass = $isPopular ? 'border-2 border-blue-500 transform scale-105' : 'border border-gray-200';
                     ?>
-                    <div class="bg-white rounded-lg shadow-lg overflow-hidden card-hover <?php echo $packageClass; ?>" data-category="<?php echo $package['package_type']; ?>">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden card-hover <?php echo $packageClass; ?>" data-category="all">
                         <?php if ($isPopular): ?>
                             <div class="bg-blue-500 text-white text-center py-2 text-sm font-semibold">
                                 Phổ biến nhất

@@ -1,6 +1,6 @@
 <?php
 session_start();
-require_once 'config/config.php';
+require_once 'includes/db.php';
 require_once 'includes/functions.php';
 
 // Kiểm tra nếu người dùng đã đăng nhập

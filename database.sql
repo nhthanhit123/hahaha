@@ -15,6 +15,8 @@ CREATE TABLE users (
     balance DECIMAL(10,2) DEFAULT 0.00,
     role ENUM('user', 'admin') DEFAULT 'user',
     status ENUM('active', 'inactive', 'suspended') DEFAULT 'active',
+    remember_token VARCHAR(255),
+    token_expiry DATETIME,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -103,6 +105,18 @@ CREATE TABLE sessions (
     user_agent TEXT,
     payload TEXT NOT NULL,
     last_activity INT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 活动日志表
+CREATE TABLE activity_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    action VARCHAR(100) NOT NULL,
+    details TEXT,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 

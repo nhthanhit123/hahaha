@@ -1,6 +1,6 @@
 <?php
 session_start();
-require_once 'config/config.php';
+require_once 'includes/db.php';
 require_once 'includes/functions.php';
 
 // Nếu đã đăng nhập thì chuyển về dashboard
@@ -27,9 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (empty($errors)) {
         try {
             // Kiểm tra user
-            $stmt = $pdo->prepare("SELECT * FROM users WHERE (username = ? OR email = ?) AND status = 'active'");
-            $stmt->execute([$username, $username]);
-            $user = $stmt->fetch();
+            $user = getRow("SELECT * FROM users WHERE (username = ? OR email = ?) AND status = 'active'", [$username, $username]);
             
             if ($user && verifyPassword($password, $user['password'])) {
                 // Đăng nhập thành công
@@ -44,8 +42,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $token = bin2hex(random_bytes(32));
                     $expiry = date('Y-m-d H:i:s', strtotime('+30 days'));
                     
-                    $stmt = $pdo->prepare("UPDATE users SET remember_token = ?, token_expiry = ? WHERE id = ?");
-                    $stmt->execute([$token, $expiry, $user['id']]);
+                    updateData('users', [
+                        'remember_token' => $token,
+                        'token_expiry' => $expiry
+                    ], 'id = ?', [$user['id']]);
                     
                     setcookie('remember_token', $token, time() + (30 * 24 * 60 * 60), '/');
                 }
@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $errors[] = 'Tên đăng nhập hoặc mật khẩu không đúng';
             }
             
-        } catch(PDOException $e) {
+        } catch(Exception $e) {
             $errors[] = 'Lỗi hệ thống, vui lòng thử lại';
         }
     }
@@ -73,9 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 // Kiểm tra remember token
 if (!isLoggedIn() && isset($_COOKIE['remember_token'])) {
     try {
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE remember_token = ? AND token_expiry > NOW() AND status = 'active'");
-        $stmt->execute([$_COOKIE['remember_token']]);
-        $user = $stmt->fetch();
+        $user = getRow("SELECT * FROM users WHERE remember_token = ? AND token_expiry > NOW() AND status = 'active'", [$_COOKIE['remember_token']]);
         
         if ($user) {
             $_SESSION['user_id'] = $user['id'];
@@ -88,7 +86,7 @@ if (!isLoggedIn() && isset($_COOKIE['remember_token'])) {
             
             redirect('dashboard.php');
         }
-    } catch(PDOException $e) {
+    } catch(Exception $e) {
         // Xóa cookie nếu có lỗi
         setcookie('remember_token', '', time() - 3600, '/');
     }
